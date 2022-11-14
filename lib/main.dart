@@ -1,115 +1,236 @@
+import 'dart:ffi';
+
+import 'package:expense/Transaction.dart';
+import 'package:expense/add_transaction.dart';
+import 'package:expense/transactionService.dart';
+import 'package:expense/view_transaction.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import 'edit_transaction.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: "Expense Tracker",
+      debugShowCheckedModeBanner: false,
+      home: Home(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class Home extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _HomeState createState() => _HomeState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _HomeState extends State<Home> {
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  List<Transaction> transactionList = <Transaction>[];
+  double income = 0;
+  double expense = 0;
+  final transactionService = TransactionService();
+
+  refreshMainPage() async {
+    var transactions = await transactionService.readAllTransactions();
+    print("all transactions = " + transactions.toString());
+    List<Transaction> outputList = <Transaction>[];
+    transactions.forEach((transaction) {
+      var transactionModel = Transaction();
+      transactionModel.id = transaction['id'];
+      transactionModel.category = transaction['category'];
+      transactionModel.note = transaction['note'];
+      transactionModel.amount = transaction['amount'];
+      transactionModel.type = transaction['type'];
+      transactionModel.activity_time = transaction['activity_time'];
+      transactionModel.created_time = transaction['created_time'];
+      transactionModel.modified_time = transaction['modified_time'];
+      outputList.add(transactionModel);
     });
+
+    double _income = await transactionService.calculateIncomeForCurrentMonth();
+    double _expense = await transactionService.calculateExpenseForCurrentMonth();
+    
+    print('----------------------------------------------------');
+    print('transaction list size = ${this.transactionList.length}');
+    print('income');
+    print(_income);
+    print('expense');
+    print(_expense);
+    print('----------------------------------------------------');
+
+    setState(() {
+      transactionList = outputList;
+      income = _income;
+      expense = _expense;
+    });
+
+  }
+
+  @override
+  void initState() {
+    refreshMainPage();
+    super.initState();
+  }
+
+  _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
+
+  _deleteFormDialog(BuildContext context, id) {
+    return showDialog(
+        context: context,
+        builder: (param) {
+          return AlertDialog(
+            title: const Text(
+              'Are You Sure to Delete ?',
+              style: TextStyle(color: Colors.teal, fontSize: 20),
+            ),
+            actions: [
+              TextButton(
+                  style: TextButton.styleFrom(
+                      primary: Colors.white, // foreground
+                      backgroundColor: Colors.red),
+                  onPressed: ()  async{
+                     var result = await transactionService.deleteTransactionById(id);
+                     if (result != null) {
+                       Navigator.pop(context);
+                       refreshMainPage();
+                       _showSuccessSnackBar(
+                           'Transaction deleted successfully');
+                     }
+                  },
+                  child: const Text('Delete')),
+              TextButton(
+                  style: TextButton.styleFrom(
+                      primary: Colors.white, // foreground
+                      backgroundColor: Colors.teal),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Close'))
+            ],
+          );
+        });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text("Expense Tracker"),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+      body: Column(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          const SizedBox(
+            height: 5.0,
+          ),
+          Card(
+              child: ListTile(
+                title: Text("Expense = $expense"),
+                subtitle: Text("Income = $income"),
+              ),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
+          const SizedBox(
+            height: 5.0,
+          ),
+          Expanded(
+            child: ListView.builder(
+          itemCount: transactionList.length,
+          itemBuilder: (context, index) {
+            String title1 = transactionList[index].category ?? '';
+            String title2 = transactionList[index].note ?? 'No note...';
+            String title = (title1 == '' ? '' : '$title1 - ') + title2;
+            return Card(
+              child: ListTile(
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ViewTransaction(
+                              transaction: transactionList[index],
+                            )));
+                },
+                leading: const Icon(Icons.list),
+                title: Text(title),
+                subtitle: Text(transactionList[index].amount.toString()),
+
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                        onPressed: () {
+                          print('edit button pressed');
+                          // Navigator.push(
+                          //     context,
+                          //     MaterialPageRoute(
+                          //         builder: (context) => EditTransaction(
+                          //               transaction: transactionList[index],
+                          //             ))).then((data) {
+                          //   if (data != null) {
+                          //     refreshMainPage();
+                          //     _showSuccessSnackBar(
+                          //         'Transaction updated successfully...');
+                          //   }
+                          // });
+                        },
+                        icon: const Icon(
+                          Icons.edit,
+                          color: Colors.teal,
+                        )),
+                    IconButton(
+                        onPressed: () {
+                          _deleteFormDialog(context, transactionList[index].id);
+                          refreshMainPage();
+                        },
+                        icon: const Icon(
+                          Icons.delete,
+                          color: Colors.red,
+                        ))
+                  ],
+                ),
+              ),
+            );
+          }),
+          ),
+        ],
+      ),   
+    floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Transaction transaction = new Transaction();
+          // transaction.category = "category";
+          // transaction.note = "note";
+          // transaction.amount = 15.50;
+          // transaction.type = "expense";
+          // transaction.activity_time = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+          // transactionService.save(transaction);
+          // refreshMainPage();
+          // _showSuccessSnackBar('Transaction added successfully...');
+
+          Navigator.push(context,
+                  MaterialPageRoute(builder: (context) => const AddTransaction()))
+              .then((data) {
+            if (data != null) {
+              refreshMainPage();
+              _showSuccessSnackBar('Transaction added successfully...');
+            } else {
+              _showSuccessSnackBar('Error occured while adding the transaction...');
+            }
+          });
+        },
         child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      ),
     );
   }
+
 }
